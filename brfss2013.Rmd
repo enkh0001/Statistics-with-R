@@ -1,0 +1,151 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+Describe how the observations in the sample are collected, and the implications of this data collection method on the scope of inference (generalizability / causality). Note that you might will need to look into documentation on the BRFSS to answer this question. See http://www.cdc.gov/brfss/ as well as the "More information on the data" section below.
+
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.gz")
+```
+
+
+
+* * *
+
+## Part 1: Data
+I believe the problem with telephone-based surveys is that of obtaining representative probability samples. Some of the general population do not have a telephone in their homes. Also, the proportion of homes without telephones is on the rise to due the use of cellular phones. A complete and accessible listing of domestic telephone numbers is difficult to obtain. As for the cellular calls, depending on the time and instance of the call, an individual may lack willingness to respond or those who chose to respond may construe biaseness in the sample. For example, you may be more willing to respond if you are a generally healthy person.
+The fact that the surveyer chose a random adult from the landline calls shows efforts to achieve random sampling. As for the cellular calls, although it is not clear why the interviewer chose only adults residing in a college dorm or private residency, I have doubts regarding whether such sampling method would give a sample that can represent the entire US population.
+All in all, assuming no biasness from the responders', I concur it is a random sample which means it is generalizable. However no random assignment was achieved since there were no explicit efforts carried out to assign individuals to different segment such as control group or any other groups.
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+
+Since  my dad has a long history of high blood pressure I shall focus on those variables that might give some insights on this. I would like to examine whether there is any relationship between the physical activity of a person and the presence of high blood pressure(hypertension).
+Also, I shall observe how the presence of high blood pressure varies across the gender group. Here we will observe variables 
+•	'sex': Respondents Sex
+•	'bpmeds': Currently Taking Blood Pressure Medication
+•	'exerany2': Exercise In Past 30 Days
+
+**Research quesion 2:**
+
+As a second question, we might be interested in exploring the relationship between people who exercise regularly and those who eat green vegetables.To be more specific, I will take variables that give information on the frequency of vegetable consumption of the individual and see if it has any relationship with the exercise variable.
+To achieve this, we need to familiriaze ourselves with the variables 'fvgreen',  and 'exerany2'. Keeping in mind that there are people who are restricted from doing physical activities due to health problems and thus excluding those in the analysis. And that variable of interest is 'qlactlm2'. 
+•	‘fvgreen’: How Many Times Did You Eat Dark Green Vegetables? 
+•	‘exerany2’: Exercise In Past 30 Days 
+•	‘qlactlm2’: Activity Limitation Due To Health Problems
+
+
+**Research quesion 3:**
+
+As a third question, we might be interested in exploring the relationship between weight in pounds of the people and the people that have  coronary heart disease. And at the same time we will explore which of the states tend to have higher average weight per person. In this section we will use 'cvdcrhd4' , 'weight2', and 'X_state' variables. 
+•	‘cvdcrhd4’: Ever Diagnosed With Angina Or Coronary Heart Disease 
+•	‘weight2’: Reported Weight In Pounds 
+•	‘X_state’: State FIPS Code
+
+* * *
+
+**Research quesion 1:**
+Let's use 'dplyr' chain to select the variables of interest and investigate only their structure by adding `str()` at the end of the chain:
+
+```{r}
+brfss2013%>%select(sex,bpmeds,exerany2,exeroft1)%>%str()
+```
+The first 3 are factor types and the last variable is integer type. Some entries have missing values NA. We will filter them from our analysislater on.
+An easy way of tabulating the blood pressure medication and any exercise 
+data to see how many times each level of is to use the `group_by()` function along with the `summarise()` command:
+
+```{r}
+brfss2013 %>% filter(bpmeds != "NA",exerany2!="NA") %>%group_by(bpmeds,exerany2) %>% summarise(count = n())
+
+```
+Although the tabular view is informative it is not very useful. At this point, it may prove useful to visualise the information in a graph. Let's graph a segmented bar plot
+```{r}
+ggplot(data=brfss2013 %>% filter(bpmeds != "NA",exerany2!="NA"),aes(x=exerany2,fill=bpmeds))                      +geom_bar()
+
+```
+
+It shows that in both "yes" and "no" responses, higher proportion of people take blood pressure medicine. Also, there is no indication that exercise leads to less need for blood pressure medication. Now let's observe which gender consumes more blood pressure medicine.
+```{r}
+ggplot(data=brfss2013 %>% filter(bpmeds != "NA",sex!="NA"),aes(x=bpmeds,fill=sex))+geom_bar()
+
+```
+Now we can conclude that higher proportion of females tend to consume blood pressure medicine as compared to the males. However this maybe biased since in our samples we have more females than males. Let's move on to research question 2.
+
+**Research quesion 2:**
+Let's explore the str() of the variables of interest
+
+```{r}
+brfss2013%>%select(fvgreen, exerany2, qlactlm2)%>%str()
+```
+All variables are integer types except the last 2 variables. 
+Let's only focus on the instance where consumption was [301 - 399] times per month. Take note that entry starting with 3 denotes monthly consumption and exclude the daily and weekly consumption from our analysis so as not to double count. To get the actual number of consumption per month we will create a new variable derived from ‘fvgreen’ variable.
+
+```{r}
+brfss2013<-brfss2013%>%filter(fvgreen>300,fvgreen<400)%>%mutate(monthlygreen=300-fvgreen)
+```
+However this variable is in the negative scale, as a result we will take absolute of this variable.
+```{r}
+brfss2013<-brfss2013%>%mutate(abs(monthlygreen))
+```
+
+Now let's observe the average number of times people eat green vegetables on a monthly basis based on whether they exercise or not. At the same time we shall filter only those people who are not limited from doing physical activities. Remember again the variable that gives information on the person’s physical limitation is given by ‘qlactlm2’.
+
+```{r}
+ brfss2013%>%filter(qlactlm2=="No")%>%group_by(exerany2)%>%summarise(mean_dd=mean(abs(monthlygreen)))
+```
+On average, people who claimed to exercise seem to have higher green vegetables eating habits. And entries with a missing response on the exercise variable have similar average green vegetable consumption on a monthly basis.
+
+**Research quesion 3:**
+
+Now is a good time to reload our data again since I have filtered and created new columns based on my filter conditions in previous research question.And let's do the same for analyzing the str() of the columns:
+
+```{r}
+load("brfss2013.gz")
+brfss2013%>%select(cvdcrhd4,weight2,X_state)%>%str()
+```
+
+All 3 variables are factor types. However for the weight variable, there're 2 scales: [50 - 0999]	Weight (pounds) and [9000 - 9998]	Weight (kilograms). Before proceeding further, let's change all kilogram entries to pounds by creating a new column called 'weightspunds'. But even before that I need to change the factor data type to integer. 
+
+```{r}
+ brfss2013$weight2 <- as.numeric(as.character(brfss2013$weight2))
+brfss2013$weight2 <- as.integer(brfss2013$weight2)
+```
+Now let us change all kilograms to pounds by creating a new column called 'weightspunds'
+```{r}
+brfss2013<-brfss2013%>%mutate(weightspunds=ifelse(weight2>=9000,(weight2-9000)*2.204,weight2))
+```
+
+Now let's observe some summary statistics of weightspunds based on the presence of coronary heart disease.
+```{r}
+brfss2013%>%filter(weightspunds>=0&weightspunds<=999)%>%group_by(cvdcrhd4)%>%summarise(mean_dd=mean(weightspunds),min_dd=min(weightspunds),max_dd=max(weightspunds),IQR_dd=IQR(weightspunds))
+```
+
+It shows that those who have coronary heart disease have higher mean weights. However IQR does not show a lot of difference. And also, the min and max of the weights does not indicate that those who have coronary heart disease have greater weights. On the contrary it suggests otherwise.
+Another observation I made regarding the computation was that it was too time-consuming to write na.rm=TRUE for each of the summary statistics I was calculating. And even though I am filtering the weights between [0,999], the final values still show for the NAs. However if I did not filter, I could not get the summary statistics. Also, filtering where !=NA did not work and gave an error. So this method was the only way I could get the summary statistics. 
+
+To explore which of the states tend to have higher average weight per person, we will only select few states since it will be messy to visualise so many bars. 
+
+```{r}
+brfss2013%>%filter(X_state %in% c("California", "New York", "Texas", "Washington", "Iowa", "Colorado"))%>%ggplot(aes(x=X_state, y=weightspunds)) + stat_summary_bin(fun.y="mean", geom="bar")
+```
+There does not seem to be major difference between different states. As such on average, people in these 5 states weigh similarly. 
+I have come to the end of my research paper. I hope it was clearly written. Since I am new to R, I may have written scripts that could have been written better by someone with more knowledge. I apologize for my lack of knowledge at this point in time. Thank you.
